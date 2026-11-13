@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chaveamento · Campeonato ANTEIKU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Lilita+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/dados.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="marca" href="index.html">
+      <img class="logo" src="logo.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+      <span class="logo-fallback">A</span>
+      ANTEIKU
+    </a>
+    <span class="espaco"></span>
+    <button class="btn3d btn-som" type="button" aria-label="Ligar ou desligar sons">🔊</button>
+  </header>
+
+  <main style="max-width: 1200px">
+    <a class="btn3d pequeno" href="index.html">← Voltar ao início</a>
+
+    <div class="cabecalho">
+      <div>
+        <h1 class="contorno">🏆 Chaveamento</h1>
+        <p class="sub" id="explica"></p>
+      </div>
+    </div>
+
+    <!-- Escolha do formato das partidas -->
+    <div class="painel escolha-formato">
+      <span class="rotulo-formato">🎮 Formato do mata-mata:</span>
+      <div class="opcoes-formato" id="opcoes-formato" role="radiogroup" aria-label="Formato do mata-mata">
+        <button type="button" class="btn3d pequeno opcao" data-formato="x1" role="radio">X1</button>
+        <button type="button" class="btn3d pequeno opcao" data-formato="2x2" role="radio">2x2</button>
+        <button type="button" class="btn3d pequeno opcao" data-formato="3x3" role="radio">3x3</button>
+      </div>
+      <small id="descricao-formato"></small>
+
+      <!-- Quantos times da tabela entram no mata-mata -->
+      <div class="linha-quantidade">
+        <span class="rotulo-formato">👥 Times no mata-mata:</span>
+        <div class="contador">
+          <button type="button" class="btn3d pequeno" id="qtd-menos" aria-label="Menos times">−</button>
+          <input type="number" id="qtd-times" min="2" step="1" aria-label="Quantidade de times no mata-mata">
+          <button type="button" class="btn3d pequeno" id="qtd-mais" aria-label="Mais times">+</button>
+        </div>
+        <div class="opcoes-formato" id="atalhos-qtd"></div>
+      </div>
+    </div>
+
+    <!-- Aparece quando algum time foi movido à mão -->
+    <div class="barra-manual painel" id="barra-manual" hidden>
+      <span id="texto-manual"></span>
+      <div class="ed-acoes">
+        <button type="button" class="btn3d pequeno" id="desfazer">↩️ Desfazer último</button>
+        <button type="button" class="btn3d pequeno vermelho" id="automatico">🔄 Voltar ao automático</button>
+      </div>
+    </div>
+
+    <div class="painel bracket-wrap">
+      <div class="bracket" id="bracket"></div>
+    </div>
+  </main>
+
+  <footer>Campeonato ANTEIKU · Site de fã, sem ligação oficial com a Supercell</footer>
+
+  <script>
+    const bracket = document.getElementById("bracket");
+    let todosJogos = [];   // lista para achar o jogo clicado
+
+    // ---------- Desenho do chaveamento ----------
+    // Cada vaga guarda: fase, número da vaga e quem está nela (time ou folga)
+    function ladoHTML(jogo, lado, classe) {
+      const id = lado === "a" ? jogo.a : jogo.b;
+      const token = lado === "a" ? jogo.tokenA : jogo.tokenB;
+      const folga = lado === "a" ? jogo.folgaA : jogo.folgaB;
+      const placar = lado === "a" ? jogo.pa : jogo.pb;
+      const vaga = lado === "a" ? jogo.vagaA : jogo.vagaB;
+      const dados = ' data-fase="' + jogo.numeroFase + '" data-vaga="' + vaga + '"'
+        + (token ? ' data-token="' + token + '"' : "");
+
+      if (folga) {
+        return '<div class="lado folga"' + dados + '><span class="escudo vazio"></span>'
+          + '<span class="nome">Folga</span><span class="placar">⏩</span></div>';
+      }
+      const t = id ? buscarTime(id) : null;
+      if (!t) {
+        return '<div class="lado indefinido"' + dados + ">" + escudoHTML(null)
+          + '<span class="nome">A definir</span><span class="placar"></span></div>';
+      }
+      return '<div class="lado ' + classe + '" data-time="' + t.id + '"' + dados + ' title="Segure e arraste para mover">'
+        + escudoHTML(t)
+        + '<span class="semente" title="Posição na tabela">' + posicaoDe(t) + "º</span>"
+        + '<span class="nome">' + t.nome + "</span>"
+        + '<span class="placar">' + (placar === null ? "" : placar) + "</span></div>";
+    }
+
+    function desenhar() {
+      const chave = montarChaveamento();
+      todosJogos = [];
+
+      // Texto explicando quem entra no mata-mata
+      const qtd = quantidadeClassificados();
+      const folgas = chave.fases.length
+        ? chave.fases[0].jogos.filter(function (j) { return j.folgaA || j.folgaB; }).length : 0;
+      document.getElementById("explica").textContent =
+        "Os " + qtd + " primeiros da tabela entram no mata-mata"
+        + (folgas ? " (os " + folgas + " melhores ganham folga e avançam direto)" : "")
+        + ". Segure um time e arraste para mudar ele de lugar. Toque num confronto para ver detalhes ou lançar o placar.";
+
+      // Barra de movimentos manuais
+      const n = CHAVEAMENTO.movimentos.length;
+      document.getElementById("barra-manual").hidden = n === 0;
+      document.getElementById("texto-manual").textContent =
+        "✋ Chaveamento com " + n + (n === 1 ? " mudança feita à mão" : " mudanças feitas à mão");
+
+      // Botões de formato (X1 / 2x2 / 3x3)
+      const formato = formatoAtual();
+      document.querySelectorAll("#opcoes-formato .opcao").forEach(function (b) {
+        const ativo = b.dataset.formato === formato;
+        b.classList.toggle("ativo", ativo);
+        b.setAttribute("aria-checked", ativo ? "true" : "false");
+      });
+      document.getElementById("descricao-formato").textContent =
+        "Partidas " + FORMATOS[formato].descricao + " (" + FORMATOS[formato].jogadores
+        + (FORMATOS[formato].jogadores === 1 ? " jogador" : " jogadores") + " por time)";
+
+      // Contador e atalhos de quantidade de times
+      const campoQtd = document.getElementById("qtd-times");
+      campoQtd.max = TIMES.length;
+      campoQtd.value = qtd;
+      document.getElementById("qtd-menos").disabled = qtd <= 2;
+      document.getElementById("qtd-mais").disabled = qtd >= TIMES.length;
+      const atalhos = [4, 8, 16, 32].filter(function (n) { return n < TIMES.length; });
+      atalhos.push(TIMES.length);
+      document.getElementById("atalhos-qtd").innerHTML = atalhos.map(function (n) {
+        return '<button type="button" class="btn3d pequeno opcao' + (n === qtd ? " ativo" : "") + '" data-qtd="' + n + '">'
+          + (n === TIMES.length ? "Todos (" + n + ")" : n) + "</button>";
+      }).join("");
+
+      let html = "";
+      chave.fases.forEach(function (fase) {
+        html += '<div class="fase"><h3 class="contorno">' + fase.nome
+          + ' <span class="selo-formato">' + FORMATOS[formato].rotulo + "</span>"
+          + '</h3><div class="jogos">';
+        fase.jogos.forEach(function (j) {
+          const folga = j.folgaA || j.folgaB;
+          const cA = j.vencedor && !folga ? (j.vencedor === j.a ? "vence" : "perde") : "";
+          const cB = j.vencedor && !folga ? (j.vencedor === j.b ? "vence" : "perde") : "";
+          html += '<div class="jogo' + (folga ? " com-folga" : "") + '" tabindex="0" data-jogo="' + todosJogos.length + '">'
+            + ladoHTML(j, "a", cA)
+            + ladoHTML(j, "b", cB)
+            + "</div>";
+          todosJogos.push(j);
+        });
+        html += "</div></div>";
+      });
+
+      // Coluna do campeão
+      const campeao = chave.campeao ? buscarTime(chave.campeao) : null;
+      html += '<div class="campeao">'
+        + (campeao
+          ? '<button class="trofeu" id="trofeu" type="button" title="Comemorar!">🏆</button>'
+            + escudoHTML(campeao, "grande")
+            + '<strong class="contorno">' + campeao.nome + "</strong><small>CAMPEÃO!</small>"
+          : '<span class="trofeu misterio">🏆</span><strong class="contorno">Campeão</strong><small>A definir… quem vai levar?</small>')
+        + "</div>";
+
+      bracket.innerHTML = html;
+
+      if (campeao) {
+        document.getElementById("trofeu").addEventListener("click", function () {
+          som("vitoria");
+          confete();
+        });
+      }
+      return chave;
+    }
+
+    // ---------- Destaque do caminho de um time ----------
+    function limparDestaque() {
+      bracket.classList.remove("focando");
+      bracket.querySelectorAll(".lado.destaque").forEach(function (el) { el.classList.remove("destaque"); });
+    }
+    bracket.addEventListener("mouseover", function (ev) {
+      if (arraste && arraste.ativo) return;
+      const lado = ev.target.closest(".lado[data-time]");
+      limparDestaque();
+      if (!lado) return;
+      bracket.classList.add("focando");
+      bracket.querySelectorAll('.lado[data-time="' + lado.dataset.time + '"]').forEach(function (el) {
+        el.classList.add("destaque");
+      });
+    });
+    bracket.addEventListener("mouseleave", limparDestaque);
+
+    // ---------- Clique num confronto ----------
+    let ignorarClique = false;
+    function abrirDoElemento(el) {
+      const caixa = el.closest(".jogo");
+      if (caixa) abrirConfronto(todosJogos[Number(caixa.dataset.jogo)]);
+    }
+    bracket.addEventListener("click", function (ev) {
+      if (ignorarClique) { ignorarClique = false; return; }
+      abrirDoElemento(ev.target);
+    });
+    bracket.addEventListener("keydown", function (ev) { if (ev.key === "Enter") abrirDoElemento(ev.target); });
+
+    // ---------- Arrastar e soltar times ----------
+    let arraste = null;
+
+    bracket.addEventListener("pointerdown", function (ev) {
+      if (ev.button !== 0) return;
+      const lado = ev.target.closest(".lado[data-time]");
+      if (!lado) return;
+      ev.preventDefault();   // evita selecionar texto
+      arraste = { origem: lado, x: ev.clientX, y: ev.clientY, ativo: false, fantasma: null, alvo: null };
+    });
+
+    function comecarArraste() {
+      arraste.ativo = true;
+      const r = arraste.origem.getBoundingClientRect();
+      const fantasma = arraste.origem.cloneNode(true);
+      fantasma.classList.add("fantasma");
+      fantasma.style.width = r.width + "px";
+      document.body.appendChild(fantasma);
+      arraste.fantasma = fantasma;
+      arraste.origem.classList.add("arrastando");
+      document.body.classList.add("modo-arraste");
+      limparDestaque();
+      som("passar");
+    }
+
+    document.addEventListener("pointermove", function (ev) {
+      if (!arraste) return;
+      if (!arraste.ativo) {
+        if (Math.hypot(ev.clientX - arraste.x, ev.clientY - arraste.y) < 6) return;
+        comecarArraste();
+      }
+      arraste.fantasma.style.left = ev.clientX + "px";
+      arraste.fantasma.style.top = ev.clientY + "px";
+
+      // Descobre em cima de qual vaga o time está
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      let alvo = el ? el.closest("#bracket .lado[data-vaga]") : null;
+      if (alvo === arraste.origem) alvo = null;
+      if (alvo !== arraste.alvo) {
+        if (arraste.alvo) arraste.alvo.classList.remove("alvo");
+        arraste.alvo = alvo;
+        if (alvo) { alvo.classList.add("alvo"); som("passar"); }
+      }
+    });
+
+    function terminarArraste(soltou) {
+      if (!arraste) return;
+      const a = arraste;
+      arraste = null;
+      if (!a.ativo) return;            // foi só um clique
+
+      ignorarClique = true;            // não abre o confronto ao soltar
+      setTimeout(function () { ignorarClique = false; }, 50);
+      a.fantasma.remove();
+      a.origem.classList.remove("arrastando");
+      document.body.classList.remove("modo-arraste");
+      if (a.alvo) a.alvo.classList.remove("alvo");
+      if (!soltou || !a.alvo) return;
+
+      const de = a.origem.dataset, para = a.alvo.dataset;
+      const faseDe = Number(de.fase), fasePara = Number(para.fase);
+      let movimento;
+      if (faseDe === fasePara && para.token) {
+        // Soltou em cima de outro time (ou folga) da mesma fase → trocam de lugar
+        movimento = { fase: fasePara, tipo: "troca", a: de.time, b: para.token };
+      } else {
+        // Soltou numa vaga vazia ou em outra fase → o time vai para essa vaga
+        movimento = { fase: fasePara, tipo: "colocar", vaga: Number(para.vaga), time: de.time };
+      }
+
+      if (!registrarMovimento(movimento)) {
+        alert("Este navegador não deixou salvar a mudança.");
+      }
+      som("abrir");
+      desenhar();
+    }
+
+    document.addEventListener("pointerup", function () { terminarArraste(true); });
+    document.addEventListener("pointercancel", function () { terminarArraste(false); });
+    document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") terminarArraste(false); });
+
+    // ---------- Escolha do formato ----------
+    document.getElementById("opcoes-formato").addEventListener("click", function (ev) {
+      const botao = ev.target.closest(".opcao");
+      if (!botao || botao.dataset.formato === formatoAtual()) return;
+      if (!salvarFormato(botao.dataset.formato)) alert("Este navegador não deixou salvar o formato.");
+      som("clique");
+      desenhar();
+    });
+
+    // ---------- Quantidade de times no mata-mata ----------
+    function mudarQuantidade(nova) {
+      nova = Math.max(2, Math.min(TIMES.length, Math.floor(Number(nova)) || 2));
+      if (nova === quantidadeClassificados()) { desenhar(); return; }
+      if (!salvarClassificados(nova)) alert("Este navegador não deixou salvar a quantidade.");
+      som("clique");
+      desenhar();
+    }
+    document.getElementById("qtd-menos").addEventListener("click", function () { mudarQuantidade(quantidadeClassificados() - 1); });
+    document.getElementById("qtd-mais").addEventListener("click", function () { mudarQuantidade(quantidadeClassificados() + 1); });
+    document.getElementById("qtd-times").addEventListener("change", function (ev) { mudarQuantidade(ev.target.value); });
+    document.getElementById("atalhos-qtd").addEventListener("click", function (ev) {
+      const b = ev.target.closest("[data-qtd]");
+      if (b) mudarQuantidade(b.dataset.qtd);
+    });
+
+    // ---------- Desfazer / voltar ao automático ----------
+    document.getElementById("desfazer").addEventListener("click", function () {
+      CHAVEAMENTO.movimentos.pop();
+      salvarMovimentos();
+      som("clique");
+      desenhar();
+    });
+    document.getElementById("automatico").addEventListener("click", function () {
+      if (!confirm("Desfazer todas as mudanças feitas à mão e voltar ao chaveamento automático (top " + quantidadeClassificados() + ")?")) return;
+      CHAVEAMENTO.movimentos = [];
+      salvarMovimentos();
+      som("clique");
+      desenhar();
+    });
+
+    // ---------- Início ----------
+    const chaveInicial = desenhar();
+    if (chaveInicial.campeao) setTimeout(confete, 400);
+  </script>
+</body>
+</html>

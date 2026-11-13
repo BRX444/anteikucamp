@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Campeonato ANTEIKU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Lilita+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/dados.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="marca" href="index.html">
+      <img class="logo" src="logo.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+      <span class="logo-fallback">A</span>
+      ANTEIKU
+    </a>
+    <span class="espaco"></span>
+    <button class="btn3d btn-som" type="button" aria-label="Ligar ou desligar sons">🔊</button>
+  </header>
+
+  <main class="inicio">
+    <span class="selo">⭐ Torneio de Brawl Stars ⭐</span>
+    <h1 class="titulo-grande contorno">ANTEIKU<small>Campeonato</small></h1>
+    <p class="sub">Acompanhe a classificação, os confrontos e quem vai levar o troféu!</p>
+
+    <!-- Os dois botões principais -->
+    <nav class="botoes">
+      <a class="btn3d botao-grande" href="tabela.html">
+        <span class="icone">📊</span>
+        Tabela do Campeonato
+        <small>Pontos, vitórias, empates, derrotas, kills e mortes</small>
+      </a>
+      <a class="btn3d azul botao-grande" href="chaveamento.html">
+        <span class="icone">🏆</span>
+        Chaveamento
+        <small>Do mata-mata até a grande final</small>
+      </a>
+    </nav>
+
+    <!-- Números do campeonato (preenchidos pelo script) -->
+    <section class="resumo" id="resumo"></section>
+
+    <!-- Próxima partida -->
+    <section class="painel proxima" id="proxima" hidden></section>
+  </main>
+
+  <footer>Campeonato ANTEIKU · Site de fã, sem ligação oficial com a Supercell</footer>
+
+  <script>
+    // ----- Números do campeonato -----
+    const lider = classificacao()[0];
+    const totalKills = TIMES.reduce(function (s, t) { return s + t.kills; }, 0);
+    const partidas = Math.round(TIMES.reduce(function (s, t) { return s + t.v + (t.e || 0) + t.d; }, 0) / 2);
+    const chave = montarChaveamento();
+    const campeao = chave.campeao ? buscarTime(chave.campeao) : null;
+
+    const itens = [
+      { valor: TIMES.length, rotulo: "Times" },
+      { valor: partidas, rotulo: "Partidas" },
+      { valor: totalKills, rotulo: "Kills totais 💥" },
+      campeao
+        ? { valor: "🏆 " + campeao.sigla, rotulo: "Campeão", time: campeao.id }
+        : { valor: "👑 " + lider.sigla, rotulo: "Líder da tabela", time: lider.id },
+    ];
+
+    document.getElementById("resumo").innerHTML = itens.map(function (i) {
+      return '<div class="painel item' + (i.time ? ' clicavel" data-time="' + i.time : "") + '">'
+        + '<div class="valor contorno">' + i.valor + "</div>"
+        + '<div class="rotulo">' + i.rotulo + "</div></div>";
+    }).join("");
+
+    document.querySelectorAll("#resumo [data-time]").forEach(function (el) {
+      el.addEventListener("click", function () { abrirTime(el.dataset.time); });
+    });
+
+    // ----- Próxima partida -----
+    const jogo = proximaPartida();
+    if (jogo) {
+      const caixa = document.getElementById("proxima");
+      const ta = buscarTime(jogo.a), tb = buscarTime(jogo.b);
+      caixa.hidden = false;
+      caixa.innerHTML = "<h3>⚔️ Próxima partida · " + jogo.fase + " · " + FORMATOS[formatoAtual()].rotulo + "</h3>"
+        + '<div class="versus">'
+        + '<div class="lado-vs">' + escudoHTML(ta, "grande") + "<span>" + ta.nome + "</span></div>"
+        + '<span class="vs contorno">VS</span>'
+        + '<div class="lado-vs">' + escudoHTML(tb, "grande") + "<span>" + tb.nome + "</span></div>"
+        + "</div>";
+      caixa.style.cursor = "pointer";
+      caixa.addEventListener("click", function () { abrirConfronto(jogo); });
+    }
+  </script>
+</body>
+</html>

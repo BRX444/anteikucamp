@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tabela · Campeonato ANTEIKU</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Lilita+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/dados.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="marca" href="index.html">
+      <img class="logo" src="logo.png" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
+      <span class="logo-fallback">A</span>
+      ANTEIKU
+    </a>
+    <span class="espaco"></span>
+    <button class="btn3d btn-som" type="button" aria-label="Ligar ou desligar sons">🔊</button>
+  </header>
+
+  <main>
+    <a class="btn3d pequeno" href="index.html">← Voltar ao início</a>
+
+    <div class="cabecalho">
+      <div>
+        <h1 class="contorno">📊 Tabela do Campeonato</h1>
+        <p class="sub">Toque em um time para ver o cartão completo. Clique nos títulos das colunas para ordenar.</p>
+      </div>
+      <div class="ferramentas">
+        <input class="busca" id="busca" type="search" placeholder="🔍 Buscar time ou jogador..." aria-label="Buscar time">
+      </div>
+    </div>
+
+    <div class="painel tabela-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="ordenavel" data-coluna="pos">#</th>
+            <th></th>
+            <th class="esq ordenavel" data-coluna="nome">Nome</th>
+            <th class="ordenavel" data-coluna="pts" title="Pontos">Pts</th>
+            <th class="ordenavel" data-coluna="v" title="Vitórias">V</th>
+            <th class="ordenavel" data-coluna="e" title="Empates">E</th>
+            <th class="ordenavel" data-coluna="d" title="Derrotas">D</th>
+            <th class="ordenavel" data-coluna="kills">Kills</th>
+            <th class="ordenavel" data-coluna="mortes">Mortes</th>
+          </tr>
+        </thead>
+        <tbody id="corpo-tabela"></tbody>
+      </table>
+    </div>
+
+    <p class="legenda">
+      🟩 Faixa verde = classificado para o mata-mata ·
+      Pts = pontos (vitória = 3 · empate = 1 · derrota = 0) ·
+      V = vitórias · E = empates · D = derrotas ·
+      Desempate: mais vitórias → maior diferença entre kills e mortes → mais kills
+    </p>
+  </main>
+
+  <footer>Campeonato ANTEIKU · Site de fã, sem ligação oficial com a Supercell</footer>
+
+  <script>
+    const oficial = classificacao();      // ordem oficial da tabela
+    let coluna = "pos";                   // coluna usada para ordenar
+    let crescente = true;                 // direção da ordenação
+    const corpo = document.getElementById("corpo-tabela");
+    const busca = document.getElementById("busca");
+
+    function desenhar() {
+      const termo = busca.value.trim().toLowerCase();
+
+      // Filtra pela busca (nome, sigla ou jogadores)
+      let lista = oficial.filter(function (t) {
+        if (!termo) return true;
+        const texto = (t.nome + " " + t.sigla + " " + (t.jogadores || []).join(" ")).toLowerCase();
+        return texto.indexOf(termo) !== -1;
+      });
+
+      // Ordena pela coluna escolhida
+      lista = lista.slice().sort(function (a, b) {
+        let x, y;
+        if (coluna === "pos") { x = oficial.indexOf(a); y = oficial.indexOf(b); }
+        else if (coluna === "nome") { return (crescente ? 1 : -1) * a.nome.localeCompare(b.nome); }
+        else if (coluna === "pts") { x = pontos(a); y = pontos(b); }
+        else { x = a[coluna] || 0; y = b[coluna] || 0; }
+        return crescente ? x - y : y - x;
+      });
+
+      if (!lista.length) {
+        corpo.innerHTML = '<tr><td colspan="9" class="vazio-msg">Nenhum time encontrado 😢</td></tr>';
+        return;
+      }
+
+      // A linha de corte só aparece na ordem oficial e sem busca
+      const qtd = quantidadeClassificados();
+      const mostrarCorte = coluna === "pos" && crescente && !termo && oficial.length > qtd;
+
+      corpo.innerHTML = lista.map(function (t, i) {
+        const pos = oficial.indexOf(t) + 1;
+        const classes = (pos <= 3 ? " top" + pos : "") + (pos <= qtd ? " classificado" : "");
+        const corte = mostrarCorte && pos === qtd
+          ? '<tr class="corte"><td colspan="9"><span class="linha-corte">✂️ Linha de corte · top ' + qtd + " vai para o mata-mata</span></td></tr>"
+          : "";
+        return '<tr class="' + classes + '" data-time="' + t.id + '" tabindex="0" style="animation-delay:' + (i * 50) + 'ms">'
+          + '<td><span class="pos' + (pos <= 3 ? " p" + pos : "") + '">' + pos + "</span></td>"
+          + "<td>" + escudoHTML(t) + "</td>"
+          + '<td class="esq nome">' + t.nome + "</td>"
+          + '<td class="pts">' + pontos(t) + "</td>"
+          + "<td>" + t.v + "</td>"
+          + "<td>" + (t.e || 0) + "</td>"
+          + "<td>" + t.d + "</td>"
+          + '<td class="kills">' + t.kills + "</td>"
+          + '<td class="mortes">' + t.mortes + "</td>"
+          + "</tr>"
+          + corte;
+      }).join("");
+
+      // Setinhas nos títulos das colunas
+      document.querySelectorAll("th.ordenavel").forEach(function (th) {
+        const ativa = th.dataset.coluna === coluna;
+        const base = th.textContent.replace(/[▲▼]/g, "").trim();
+        th.innerHTML = base + (ativa ? '<span class="seta">' + (crescente ? "▲" : "▼") + "</span>" : "");
+      });
+    }
+
+    // Clique no título da coluna → ordena
+    document.querySelectorAll("th.ordenavel").forEach(function (th) {
+      th.addEventListener("click", function () {
+        const nova = th.dataset.coluna;
+        if (nova === coluna) crescente = !crescente;
+        else {
+          coluna = nova;
+          // números começam do maior; posição e nome começam do menor
+          crescente = (nova === "pos" || nova === "nome");
+        }
+        som("clique");
+        desenhar();
+      });
+    });
+
+    // Clique (ou Enter) numa linha → abre o cartão do time
+    corpo.addEventListener("click", function (ev) {
+      const linha = ev.target.closest("tr[data-time]");
+      if (linha) abrirTime(linha.dataset.time);
+    });
+    corpo.addEventListener("keydown", function (ev) {
+      const linha = ev.target.closest("tr[data-time]");
+      if (linha && ev.key === "Enter") abrirTime(linha.dataset.time);
+    });
+
+    busca.addEventListener("input", desenhar);
+    desenhar();
+  </script>
+</body>
+</html>
